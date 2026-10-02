@@ -31,6 +31,7 @@ add_library(hawser_core STATIC
   src/machines.cpp
   src/path.cpp
   src/protocol.cpp
+  src/report.cpp
   src/settings.cpp
   src/text.cpp
   src/tunnel.cpp
@@ -59,6 +60,7 @@ add_executable(hawser_tests
   tests/test_path.cpp
   tests/test_plan.cpp
   tests/test_protocol.cpp
+  tests/test_report.cpp
   tests/test_settings.cpp
   tests/test_text.cpp
 )

@@ -14,6 +14,7 @@
 #include "invite.h"
 #include "machines.h"
 #include "protocol.h"
+#include "report.h"
 #include "settings.h"
 #include "text.h"
 #include "tunnel.h"
@@ -311,29 +312,32 @@ void run_down(const std::vector<std::string>& raw_arguments) {
     std::cout << "Removed " << settings.interface_name << ". This machine has left the network until 'hawser up' runs again.\n";
 }
 
-void run_status(const std::vector<std::string>& raw_arguments) {
-    require_root();
-    parse_arguments(raw_arguments, {});
-    const Paths paths = read_paths();
-    const Settings settings = load_settings(paths);
-    if (!tunnel_exists(settings.interface_name)) {
-        std::cout << settings.interface_name << " is down. Start it with: hawser up\n";
-        return;
-    }
+// Everything `status` knows, gathered once, so the table and the JSON cannot disagree.
+StatusReport build_status_report(const Paths& paths, const Settings& settings) {
+    StatusReport report;
+    report.interface_name = settings.interface_name;
+    report.role = settings.role == Role::coordinator ? "coordinator" : "agent";
+    report.network_name = settings.network_name;
+    report.network = format_network(settings.network);
+    report.name = settings.name;
+    report.address = format_address(settings.address);
+    report.is_up = tunnel_exists(settings.interface_name);
+    if (!report.is_up) return report;
+
     const TunnelState tunnel = read_tunnel(settings.interface_name);
     const int64_t now = read_unix_seconds();
     const auto find_peer = [&](const Key& key) {
         return std::find_if(tunnel.peers.begin(), tunnel.peers.end(),
                             [&](const TunnelPeer& peer) { return peer.public_key == key; });
     };
-    const auto describe_handshake = [&](const Key& key) -> std::string {
+    const auto fill_from_peer = [&](StatusMachine& machine, const Key& key) {
         const auto peer = find_peer(key);
-        if (peer == tunnel.peers.end() || peer->last_handshake_unix_seconds == 0) return "never";
-        return describe_seconds_ago(std::max<int64_t>(0, now - peer->last_handshake_unix_seconds));
+        if (peer == tunnel.peers.end()) return;
+        machine.endpoint = peer->endpoint;
+        if (peer->last_handshake_unix_seconds > 0) {
+            machine.heard_seconds_ago = std::max<int64_t>(0, now - peer->last_handshake_unix_seconds);
+        }
     };
-
-    std::cout << "Network " << settings.network_name << ", " << format_network(settings.network) << ". This machine: "
-              << settings.name << ", " << format_address(settings.address) << ".\n\n";
 
     if (settings.role == Role::coordinator) {
         std::vector<Machine> machines;
@@ -341,49 +345,93 @@ void run_status(const std::vector<std::string>& raw_arguments) {
             const MachinesLock lock(paths);
             machines = lock.load();
         }
-        std::vector<std::vector<std::string>> rows = {{"NAME", "ADDRESS", "STATE", "LAST HEARD", "ENDPOINT"}};
         for (const Machine& machine : machines) {
-            if (machine.address == settings.address) {
-                rows.push_back({machine.name, format_address(machine.address), "coordinator", "-", "-"});
-                continue;
-            }
-            const auto peer = find_peer(machine.public_key);
-            const std::string endpoint = peer != tunnel.peers.end() && !peer->endpoint.empty() ? peer->endpoint : "-";
-            rows.push_back({machine.name, format_address(machine.address),
-                            machine.state == MachineState::joined ? "joined" : "invited", describe_handshake(machine.public_key), endpoint});
+            StatusMachine entry;
+            entry.name = machine.name;
+            entry.address = format_address(machine.address);
+            entry.state = machine.state == MachineState::joined ? "joined" : "invited";
+            entry.is_coordinator = machine.address == settings.address;
+            entry.path = entry.is_coordinator ? "self" : "direct";
+            if (!entry.is_coordinator) fill_from_peer(entry, machine.public_key);
+            report.machines.push_back(entry);
         }
-        print_table(rows);
-        return;
+        return report;
     }
 
     NetworkView view;
     try {
         view = parse_network_view(call_coordinator(settings.coordinator_address, settings.api_port, "peers", API_TIMEOUT_SECONDS));
     } catch (const HawserError& error) {
-        std::cout << "The coordinator is not answering: " << error.what() << "\n";
-        return;
+        report.coordinator_error = error.what();
+        return report;
     }
-    std::string coordinator_name = "the coordinator";
     for (const MachineView& machine : view.machines) {
-        if (machine.public_key == settings.coordinator_public_key) coordinator_name = machine.name;
-    }
-    std::vector<std::vector<std::string>> rows = {{"NAME", "ADDRESS", "PATH", "LAST HEARD"}};
-    for (const MachineView& machine : view.machines) {
-        std::string path = "through " + coordinator_name;
-        std::string heard = "-";
+        StatusMachine entry;
+        entry.name = machine.name;
+        entry.address = format_address(machine.address);
+        entry.state = "joined";
+        entry.is_coordinator = machine.public_key == settings.coordinator_public_key;
         if (machine.address == settings.address) {
-            path = "this machine";
-        } else if (machine.public_key == settings.coordinator_public_key) {
-            path = "direct (coordinator)";
-            heard = describe_handshake(machine.public_key);
+            entry.path = "self";
         } else {
             const auto peer = find_peer(machine.public_key);
-            if (peer != tunnel.peers.end() && !peer->allowed_networks.empty()) {
-                path = "direct";
-                heard = describe_handshake(machine.public_key);
-            }
+            // Routed its own address means the direct path has been proven. Otherwise its traffic goes through the coordinator.
+            const bool is_direct = entry.is_coordinator || (peer != tunnel.peers.end() && !peer->allowed_networks.empty());
+            entry.path = is_direct ? "direct" : "relayed";
+            if (is_direct) fill_from_peer(entry, machine.public_key);
         }
-        rows.push_back({machine.name, format_address(machine.address), path, heard});
+        report.machines.push_back(entry);
+    }
+    return report;
+}
+
+void run_status(const std::vector<std::string>& raw_arguments) {
+    require_root();
+    bool as_json = false;
+    for (const std::string& argument : raw_arguments) {
+        if (argument == "--json") as_json = true;
+        else throw HawserError("usage: hawser status [--json]");
+    }
+    const Paths paths = read_paths();
+    const Settings settings = load_settings(paths);
+    const StatusReport report = build_status_report(paths, settings);
+    if (as_json) {
+        std::cout << format_status_json(report) << "\n";
+        return;
+    }
+    if (!report.is_up) {
+        std::cout << report.interface_name << " is down. Start it with: hawser up\n";
+        return;
+    }
+    std::cout << "Network " << report.network_name << ", " << report.network << ". This machine: " << report.name << ", "
+              << report.address << ".\n\n";
+    if (!report.coordinator_error.empty()) {
+        std::cout << "The coordinator is not answering: " << report.coordinator_error << "\n";
+        return;
+    }
+
+    const bool is_coordinator = report.role == "coordinator";
+    std::string coordinator_name = "the coordinator";
+    for (const StatusMachine& machine : report.machines) {
+        if (machine.is_coordinator) coordinator_name = machine.name;
+    }
+    std::vector<std::vector<std::string>> rows;
+    rows.push_back(is_coordinator ? std::vector<std::string>{"NAME", "ADDRESS", "STATE", "LAST HEARD", "ENDPOINT"}
+                                  : std::vector<std::string>{"NAME", "ADDRESS", "PATH", "LAST HEARD"});
+    for (const StatusMachine& machine : report.machines) {
+        const bool is_self = machine.path == "self";
+        const std::string heard = is_self || machine.path == "relayed"
+                                      ? "-"
+                                      : machine.heard_seconds_ago ? describe_seconds_ago(*machine.heard_seconds_ago) : "never";
+        if (is_coordinator) {
+            rows.push_back({machine.name, machine.address, is_self ? "coordinator" : machine.state, heard,
+                            machine.endpoint.empty() ? "-" : machine.endpoint});
+        } else {
+            std::string path = "through " + coordinator_name;
+            if (is_self) path = "this machine";
+            else if (machine.path == "direct") path = machine.is_coordinator ? "direct (coordinator)" : "direct";
+            rows.push_back({machine.name, machine.address, path, heard});
+        }
     }
     print_table(rows);
 }

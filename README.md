@@ -97,7 +97,7 @@ next free one.
 
 | Command | Where | What it does |
 |---|---|---|
-| `hawser status` | any machine | Lists the machines, their addresses, and how each is reached |
+| `hawser status` | any machine | Lists the machines, their addresses, and how each is reached. `--json` prints the same as one line of JSON, for a program |
 | `hawser invite <name>` | coordinator | Prints the line that lets a new machine join |
 | `hawser remove <name>` | coordinator | Cuts a machine off at once; the others forget it within seconds |
 | `hawser up` | any machine | Runs the network. This is what the service runs |

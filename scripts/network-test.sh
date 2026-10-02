@@ -76,6 +76,14 @@ wait_until 30 "south-a reaches north-b" ping_from south-a north-b
 sleep 20
 path_is north-a south-a "through hub" >/dev/null || fail "north-a reaches south-a through the coordinator, not directly"
 echo "ok: that path stays through the coordinator"
+
+echo "== the same is there for a program to read"
+json="$(on north-a hawser status --json)"
+echo "$json" | grep -q '"name": "north-b", "address": "10.77.0.3", "is_coordinator": false, "state": "joined", "path": "direct"' || fail "status --json says north-b is direct"
+echo "$json" | grep -q '"name": "south-a", "address": "10.77.0.4", "is_coordinator": false, "state": "joined", "path": "relayed"' || fail "status --json says south-a is relayed"
+echo "$json" | grep -q '"name": "hub", "address": "10.77.0.1", "is_coordinator": true' || fail "status --json names the coordinator"
+on coordinator hawser status --json | grep -q '"role": "coordinator".*"name": "south-a".*"endpoint": "[0-9.]*:[0-9]*"' || fail "the coordinator's status --json gives each machine's endpoint"
+echo "ok: status --json agrees with the table"
 wait_until 10 "and still works" ping_from south-a north-a
 
 echo "== an invite works once"

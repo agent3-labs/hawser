@@ -30,7 +30,7 @@ const char USAGE[] =
     "\n"
     "On any machine:\n"
     "  up                run the network; this is what the service runs\n"
-    "  status            list the machines and how each is reached\n"
+    "  status [--json]   list the machines and how each is reached; --json for a program\n"
     "  down              remove the interface and leave until 'up' runs again\n"
     "  version           print the version\n";
 

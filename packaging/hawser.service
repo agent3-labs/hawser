@@ -8,10 +8,15 @@
 Description=Hawser private network
 After=network-online.target
 Wants=network-online.target
+# Docker, where it is installed, starts only once this machine has its address
+# in the network. A swarm that advertises that address needs it to exist.
+Before=docker.service
 # Nothing to run until the machine has been set up.
 ConditionPathExists=/etc/hawser/hawser.conf
 
 [Service]
+# Counts as started when hawser says the interface is up, not when it is launched.
+Type=notify
 ExecStart=/usr/local/bin/hawser up
 Restart=always
 RestartSec=5

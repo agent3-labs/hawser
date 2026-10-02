@@ -4,6 +4,8 @@
 #include <atomic>
 #include <cerrno>
 #include <csignal>
+#include <cstddef>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <optional>
@@ -14,6 +16,7 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #include "hosts.h"
@@ -43,6 +46,29 @@ std::atomic<bool> stop_requested{false};
 
 void request_stop(int) {
     stop_requested = true;
+}
+
+// Tells systemd the interface is up, so that whatever is ordered after this
+// service, Docker for one, starts with the machine's address already there.
+// This is systemd's notify protocol: one datagram to the socket it names.
+// Run by hand, there is no such socket and nothing happens.
+void notify_service_ready() {
+    const char* socket_path = std::getenv("NOTIFY_SOCKET");
+    if (socket_path == nullptr || *socket_path == '\0') return;
+    sockaddr_un address{};
+    address.sun_family = AF_UNIX;
+    const size_t path_length = std::strlen(socket_path);
+    if (path_length >= sizeof(address.sun_path)) return;
+    std::memcpy(address.sun_path, socket_path, path_length);
+    // A leading @ names a socket that is not a file; the kernel spells that with a zero byte.
+    if (address.sun_path[0] == '@') address.sun_path[0] = '\0';
+
+    const int notify_socket = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+    if (notify_socket < 0) return;
+    const char message[] = "READY=1";
+    sendto(notify_socket, message, sizeof(message) - 1, MSG_NOSIGNAL, reinterpret_cast<sockaddr*>(&address),
+           static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + path_length));
+    close(notify_socket);
 }
 
 std::vector<HostEntry> list_host_entries(const std::vector<Machine>& machines) {
@@ -321,6 +347,7 @@ void run_coordinator(const Paths& paths, const Settings& settings) {
 
     Coordinator coordinator(paths, settings);
     coordinator.sync();
+    notify_service_ready();
     log_line("coordinating the " + settings.network_name + " network (" + format_network(settings.network) + ") as " +
              settings.name + ", " + format_address(settings.address));
 
@@ -345,6 +372,7 @@ void run_coordinator(const Paths& paths, const Settings& settings) {
 
 void run_agent(const Paths& paths, const Settings& settings) {
     bring_up_tunnel(settings, load_private_key(paths));
+    notify_service_ready();
     log_line("joining the " + settings.network_name + " network as " + settings.name + ", " + format_address(settings.address));
 
     std::string coordinator_endpoint;

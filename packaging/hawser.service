@@ -1,0 +1,20 @@
+# Runs this machine's part of the network: the coordinator on the machine
+# that was set up with `hawser init`, an agent on one set up with `hawser join`.
+#
+# Stopping the service leaves the interface up, so restarting it does not cut
+# connections that are working. `hawser down` removes the interface.
+
+[Unit]
+Description=Hawser private network
+After=network-online.target
+Wants=network-online.target
+# Nothing to run until the machine has been set up.
+ConditionPathExists=/etc/hawser/hawser.conf
+
+[Service]
+ExecStart=/usr/local/bin/hawser up
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

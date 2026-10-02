@@ -1,0 +1,49 @@
+name: hawser-test
+
+# Four machines for scripts/network-test.sh. The coordinator sits on two
+# networks. The machines on `north` can reach each other; the machine on
+# `south` can reach only the coordinator, like a machine behind a NAT that
+# nothing else can get through.
+#
+# Every container gets NET_ADMIN, which is what creating a WireGuard interface
+# takes. The interface lives in the container's own network namespace and is
+# gone with it; the host's network is not touched.
+
+x-machine: &machine
+  build:
+    context: .
+    target: test
+  cap_add:
+    - NET_ADMIN
+
+services:
+  coordinator:
+    <<: *machine
+    sysctls:
+      # /proc/sys is read-only in a container, so what the coordinator would
+      # set for itself on a real machine is set here.
+      net.ipv4.ip_forward: 1
+      net.ipv4.conf.all.send_redirects: 0
+      net.ipv4.conf.default.send_redirects: 0
+    networks:
+      - north
+      - south
+
+  north-a:
+    <<: *machine
+    networks:
+      - north
+
+  north-b:
+    <<: *machine
+    networks:
+      - north
+
+  south-a:
+    <<: *machine
+    networks:
+      - south
+
+networks:
+  north:
+  south:

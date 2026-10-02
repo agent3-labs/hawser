@@ -1,0 +1,87 @@
+stages:
+  - test
+  - publish
+
+# Pin every job to a self-hosted runner. Without a tag, GitLab offers the job
+# to its shared fleet as well, and those runners win the race every time.
+default:
+  tags:
+    - self-hosted
+
+# Two branches. `dev` takes pushes. `prod` only moves when `dev` is merged
+# into it, and every commit on it publishes the binary machines install.
+
+# Compiles hawser the way a release is compiled, as one static binary on
+# Alpine, and runs the unit tests. The binary is kept as the job's artifact.
+unit_tests:
+  stage: test
+  image: alpine:3.20
+  interruptible: true
+  before_script:
+    - apk add --no-cache build-base cmake linux-headers
+  script:
+    - VERSION="$(cat VERSION)+$CI_COMMIT_SHORT_SHA"
+    - cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DHAWSER_STATIC=ON -DHAWSER_VERSION="$VERSION"
+    - cmake --build build -j
+    - ./build/hawser_tests
+    - ./build/hawser version
+    - for script in scripts/*.sh; do sh -n "$script"; done
+  artifacts:
+    name: "hawser-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - build/hawser
+    expire_in: 30 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+# Four containers joined into one network through real WireGuard interfaces.
+# Needs a runner that offers Docker and a host kernel with WireGuard in it.
+network_test:
+  stage: test
+  interruptible: true
+  tags:
+    - self-hosted
+    - dind
+  image: docker:28-cli
+  services:
+    - docker:28-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: 1
+    DOCKER_CERT_PATH: "/certs/client"
+    DOCKER_BUILDKIT: 1
+  before_script:
+    - |
+      for i in $(seq 1 30); do
+        docker info >/dev/null 2>&1 && break
+        if [ "$i" = 30 ]; then echo "dind did not become ready after 30s"; exit 1; fi
+        sleep 1
+      done
+  script:
+    - sh scripts/network-test.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+# Puts the binary the tests just passed in this project's package registry,
+# under the version in the VERSION file, where a machine can download it.
+publish:
+  stage: publish
+  image: curlimages/curl:latest
+  needs:
+    - job: unit_tests
+      artifacts: true
+    - job: network_test
+      artifacts: false
+  script:
+    - VERSION="$(cat VERSION)"
+    - |
+      curl --fail-with-body --silent --show-error \
+        --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+        --upload-file build/hawser \
+        "$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/hawser/$VERSION/hawser"
+    - echo "Published $CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/hawser/$VERSION/hawser"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "prod"'

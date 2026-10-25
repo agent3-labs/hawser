@@ -19,6 +19,23 @@ they reach each other. There is no account and no third party's server.
 - One machine that the others can dial: a public address and one open UDP port.
 - Root on each machine.
 
+## Install from a download
+
+The [releases page](https://github.com/agent3-labs/hawser/releases) has, for
+each release, a package and a tarball for x86-64, arm64 and armv7 (Raspberry
+Pi). Nothing else is needed: the binary is static.
+
+| File | For | Install with |
+|---|---|---|
+| `hawser_<version>_<arch>.deb` | Debian, Ubuntu, Raspberry Pi OS | `sudo apt install ./hawser_*.deb` |
+| `hawser-<version>-1.<arch>.rpm` | Fedora, RHEL, openSUSE | `sudo dnf install ./hawser-*.rpm` |
+| `hawser_<version>_<arch>.apk` | Alpine | `sudo apk add --allow-untrusted ./hawser-*.apk` |
+| `hawser-v<version>-linux-<arch>.tar.gz` | Any other distribution | unpack, then `sudo ./install.sh ./hawser` |
+
+A package puts `hawser` in `/usr/bin` with its service; the tarball's
+`install.sh` puts it in `/usr/local/bin`. Either way nothing is set up and
+nothing is started: carry on at "Create a network".
+
 ## Build
 
 ```sh
@@ -34,7 +51,7 @@ Without Docker, on a machine with a C++20 compiler and CMake:
 cmake -S . -B build && cmake --build build -j && ./build/hawser_tests
 ```
 
-## Install
+## Install from a checkout
 
 On each machine, as root, from a checkout of this repository:
 
@@ -211,6 +228,17 @@ namespaces; the host's network is not touched.
 `dev` takes pushes. `prod` moves only when `dev` is merged into it, and each
 commit on `prod` publishes the binary to this project's package registry under
 the version in the `VERSION` file.
+
+## Releasing
+
+`make package` builds the downloads for every architecture into `release/`
+(see `scripts/package.sh` for what it needs), and a GitHub release under the
+tag `v<version>` carries them:
+
+```sh
+make package
+gh release create "v$(cat VERSION)" --repo agent3-labs/hawser release/*
+```
 
 ## Third-party code
 

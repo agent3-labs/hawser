@@ -17,7 +17,9 @@ ConditionPathExists=/etc/hawser/hawser.conf
 [Service]
 # Counts as started when hawser says the interface is up, not when it is launched.
 Type=notify
-ExecStart=/usr/local/bin/hawser up
+# The name alone, so the same unit serves a package (/usr/bin) and
+# scripts/install.sh (/usr/local/bin). systemd looks in both.
+ExecStart=hawser up
 Restart=always
 RestartSec=5
 

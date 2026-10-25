@@ -3,8 +3,11 @@
 #
 # Usage: sudo scripts/install.sh <path to the hawser binary>
 #
-# The binary is static, so the same file works on any Linux. Build it with:
+# The binary is static, so the same file works on any Linux. Download it from
+# the releases page, or build it with:
 #   docker build --target binary --output dist .
+#
+# Debian, Fedora and Alpine users have a package instead; see the README.
 #
 # This sets nothing up and starts nothing. Afterwards run `hawser init` on the
 # coordinator or `hawser join` on any other machine, then:
@@ -22,7 +25,10 @@ if ! modprobe wireguard 2>/dev/null && [ ! -d /sys/module/wireguard ]; then
 fi
 
 install -m 0755 "$binary" /usr/local/bin/hawser
-install -m 0644 "$(dirname "$0")/../packaging/hawser.service" /etc/systemd/system/hawser.service
+# The unit sits beside this script in a release tarball, in packaging/ in a checkout.
+unit="$(dirname "$0")/hawser.service"
+[ -f "$unit" ] || unit="$(dirname "$0")/../packaging/hawser.service"
+install -m 0644 "$unit" /etc/systemd/system/hawser.service
 systemctl daemon-reload
 
 echo "Installed $(/usr/local/bin/hawser version)."

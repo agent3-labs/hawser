@@ -29,7 +29,7 @@ Pi). Nothing else is needed: the binary is static.
 |---|---|---|
 | `hawser_<version>_<arch>.deb` | Debian, Ubuntu, Raspberry Pi OS | `sudo apt install ./hawser_*.deb` |
 | `hawser-<version>-1.<arch>.rpm` | Fedora, RHEL, openSUSE | `sudo dnf install ./hawser-*.rpm` |
-| `hawser_<version>_<arch>.apk` | Alpine | `sudo apk add --allow-untrusted ./hawser-*.apk` |
+| `hawser_<version>_<arch>.apk` | Alpine | `sudo apk add --allow-untrusted ./hawser_*.apk` |
 | `hawser-v<version>-linux-<arch>.tar.gz` | Any other distribution | unpack, then `sudo ./install.sh ./hawser` |
 
 A package puts `hawser` in `/usr/bin` with its service; the tarball's

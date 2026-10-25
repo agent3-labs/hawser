@@ -216,3 +216,14 @@ the version in the `VERSION` file.
 
 `third_party/wireguard` holds WireGuard's own small library for configuring
 the kernel, unchanged, under LGPL-2.1+. See the README in that folder.
+
+## Contributing
+
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md)
+says how a change gets in, and [SECURITY.md](SECURITY.md) how to report a
+vulnerability privately.
+
+## License
+
+Hawser is licensed under the [Apache License 2.0](LICENSE).
+Contributions are accepted under the same license.

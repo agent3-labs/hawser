@@ -1,0 +1,11 @@
+Hawser
+Copyright 2026 The Hawser Authors
+
+This product is licensed under the Apache License, Version 2.0.
+See the LICENSE file for details.
+
+This product includes WireGuard's embeddable library (third_party/wireguard),
+Copyright (C) 2015-2026 Jason A. Donenfeld and Copyright (C) 2008-2012 Pablo
+Neira Ayuso, licensed under the GNU Lesser General Public License version 2.1
+or later. Its source is in that folder, unchanged, with a README saying where
+it comes from.

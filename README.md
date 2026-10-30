@@ -74,7 +74,7 @@ systemctl enable --now hawser
 
 | Option | Meaning |
 |---|---|
-| `--network-name` | A short name for the network. Machines are also reachable as `<machine>.<network-name>` |
+| `--network-name` | A short name for the network. Machines are reachable as `<machine>.<network-name>` |
 | `--network` | The range addresses are handed out from. Pick one nothing else on your machines uses |
 | `--name` | This machine's name in the network |
 | `--endpoint` | The `host:port` other machines dial to reach this one. The UDP port must be open from outside |
@@ -136,10 +136,11 @@ build-box    10.77.0.4  through vps           -
 
 **By address.** The coordinator gives each machine one address for good.
 
-**By name.** Each machine keeps a block in `/etc/hosts` listing every machine,
-so `ssh laptop` and `ping laptop.home` work everywhere. Only that block is ever
-touched. Set `manages_hosts=no` in `/etc/hawser/hawser.conf` to leave the file
-alone.
+**By name.** Each machine keeps a block in `/etc/hosts` listing every machine
+as `<machine>.<network-name>`, so `ssh laptop.home` works everywhere and always
+goes through the network. The bare name `laptop` is left to the local network.
+Only that block is ever touched. Set `manages_hosts=no` in
+`/etc/hawser/hawser.conf` to leave the file alone.
 
 **By the best path available.** Every machine calls the coordinator, so the
 coordinator sees the public address and port each one is calling from, and

@@ -27,7 +27,7 @@ std::string render_hosts(const std::string& current_text, const std::string& net
 
     text += BLOCK_START + ": machines of the " + network_name + " network. Written by hawser; edits here are lost.\n";
     for (const HostEntry& entry : entries) {
-        text += format_address(entry.address) + " " + entry.name + "." + network_name + " " + entry.name + "\n";
+        text += format_address(entry.address) + " " + entry.name + "." + network_name + "\n";
     }
     text += BLOCK_END + "\n";
     return text;

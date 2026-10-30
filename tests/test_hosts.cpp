@@ -13,10 +13,17 @@ std::vector<HostEntry> make_entries() {
 
 }  // namespace
 
-TEST(every_machine_gets_a_short_and_a_full_name) {
+TEST(every_machine_is_named_only_with_the_network_suffix) {
     const std::string text = render_hosts(SYSTEM_HOSTS, "home", make_entries());
-    CHECK(text.find("10.77.0.1 vps.home vps\n") != std::string::npos);
-    CHECK(text.find("10.77.0.2 workstation.home workstation\n") != std::string::npos);
+    CHECK(text.find("10.77.0.1 vps.home\n") != std::string::npos);
+    CHECK(text.find("10.77.0.2 workstation.home\n") != std::string::npos);
+}
+
+TEST(an_old_block_with_bare_names_is_rewritten_without_them) {
+    const std::string old_block = SYSTEM_HOSTS + "# hawser begin\n10.77.0.1 vps.home vps\n# hawser end\n";
+    const std::string text = render_hosts(old_block, "home", make_entries());
+    CHECK(text.find(" vps\n") == std::string::npos);
+    CHECK(text.find("10.77.0.1 vps.home\n") != std::string::npos);
 }
 
 TEST(lines_that_are_not_hawsers_are_left_exactly_as_they_were) {

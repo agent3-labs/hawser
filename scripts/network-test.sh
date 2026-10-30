@@ -56,22 +56,22 @@ for machine in north-a north-b south-a; do
   start "$machine"
 done
 
-echo "== every machine has an address and finds the others by name"
-wait_until 30 "north-a reaches the coordinator by name" ping_from north-a hub
-wait_until 30 "north-a reaches north-b by name" ping_from north-a north-b
-wait_until 30 "north-b reaches north-a by its full name" ping_from north-b north-a.test
-wait_until 30 "the coordinator reaches south-a by name" ping_from coordinator south-a
+echo "== every machine has an address and finds the others by <name>.test"
+wait_until 30 "north-a reaches the coordinator by name" ping_from north-a hub.test
+wait_until 30 "north-a reaches north-b by name" ping_from north-a north-b.test
+wait_until 30 "north-b reaches north-a by name" ping_from north-b north-a.test
+wait_until 30 "the coordinator reaches south-a by name" ping_from coordinator south-a.test
 [ "$(on north-a sh -c 'ip -4 -o addr show hawser0' | awk '{print $4}')" = "10.77.0.2/24" ] || fail "north-a holds 10.77.0.2"
 echo "ok: north-a holds the address its invite gave it"
 
 echo "== machines that can reach each other connect directly"
 wait_until 60 "north-a talks to north-b directly" path_is north-a north-b direct
 wait_until 60 "north-b talks to north-a directly" path_is north-b north-a direct
-wait_until 10 "and still reaches it" ping_from north-a north-b
+wait_until 10 "and still reaches it" ping_from north-a north-b.test
 
 echo "== machines that cannot reach each other go through the coordinator"
-wait_until 30 "north-a reaches south-a" ping_from north-a south-a
-wait_until 30 "south-a reaches north-b" ping_from south-a north-b
+wait_until 30 "north-a reaches south-a" ping_from north-a south-a.test
+wait_until 30 "south-a reaches north-b" ping_from south-a north-b.test
 # Longer than it takes a direct path to be found, to show none is claimed.
 sleep 20
 path_is north-a south-a "through hub" >/dev/null || fail "north-a reaches south-a through the coordinator, not directly"
@@ -84,7 +84,7 @@ echo "$json" | grep -q '"name": "south-a", "address": "10.77.0.4", "is_coordinat
 echo "$json" | grep -q '"name": "hub", "address": "10.77.0.1", "is_coordinator": true' || fail "status --json names the coordinator"
 on coordinator hawser status --json | grep -q '"role": "coordinator".*"name": "south-a".*"endpoint": "[0-9.]*:[0-9]*"' || fail "the coordinator's status --json gives each machine's endpoint"
 echo "ok: status --json agrees with the table"
-wait_until 10 "and still works" ping_from south-a north-a
+wait_until 10 "and still works" ping_from south-a north-a.test
 
 echo "== an invite works once"
 never "a used invite is refused" on south-a sh -c "HAWSER_CONFIG_DIR=/tmp/second hawser join '$invite' --interface hawser1"
@@ -92,14 +92,14 @@ never "a used invite is refused" on south-a sh -c "HAWSER_CONFIG_DIR=/tmp/second
 echo "== direct paths outlive the coordinator"
 on coordinator pkill hawser
 sleep 3
-wait_until 10 "north-a still reaches north-b with the coordinator stopped" ping_from north-a north-b
+wait_until 10 "north-a still reaches north-b with the coordinator stopped" ping_from north-a north-b.test
 start coordinator
-wait_until 40 "south-a is back through the restarted coordinator" ping_from north-a south-a
+wait_until 40 "south-a is back through the restarted coordinator" ping_from north-a south-a.test
 
 echo "== a removed machine is cut off"
 on coordinator hawser remove south-a >/dev/null
-never "south-a is cut off the moment it is removed" ping_from south-a hub
-never "and cannot reach the other machines either" ping_from south-a north-a
+never "south-a is cut off the moment it is removed" ping_from south-a hub.test
+never "and cannot reach the other machines either" ping_from south-a north-a.test
 wait_until 30 "north-a no longer knows south-a by name" sh -c "! docker compose -f docker-compose.test.yml exec -T north-a grep -q south-a /etc/hosts"
 
 echo "== leaving puts the machine back as it was"

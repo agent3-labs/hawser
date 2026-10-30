@@ -16,8 +16,9 @@ struct HostEntry {
 };
 
 // The hosts file's text with hawser's block replaced by one listing `entries`.
-// Each machine is reachable as `name` and as `name.network_name`. With no
-// entries the block is removed altogether.
+// Each machine is listed only as `name.network_name`: its bare name is left to
+// the local network, so a name with the network's suffix always means the
+// tunnel. With no entries the block is removed altogether.
 std::string render_hosts(const std::string& current_text, const std::string& network_name, const std::vector<HostEntry>& entries);
 
 // Brings the hosts file in line, writing only when something changed.
